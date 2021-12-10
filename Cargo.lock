@@ -302,6 +302,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-sha1"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb58b6451e8c2a812ad979ed1d83378caa5e927eef2622017a45f251457c2c9d"
+
+[[package]]
 name = "core-foundation"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1186,6 +1192,7 @@ dependencies = [
  "async-trait",
  "bytes 1.1.0",
  "combine",
+ "const-sha1",
  "crc16",
  "criterion",
  "dtoa",
@@ -1200,7 +1207,6 @@ dependencies = [
  "quickcheck",
  "r2d2",
  "rand 0.8.4",
- "sha1",
  "socket2 0.3.19",
  "tempfile",
  "tokio",
@@ -1365,12 +1371,6 @@ dependencies = [
  "ryu",
  "serde",
 ]
-
-[[package]]
-name = "sha1"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
 name = "slab"

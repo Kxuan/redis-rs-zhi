@@ -1,5 +1,4 @@
 #![cfg(feature = "script")]
-use sha1::Sha1;
 
 use crate::cmd::cmd;
 use crate::connection::ConnectionLike;
@@ -7,11 +6,15 @@ use crate::types::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs};
 
 /// Represents a lua script.
 #[derive(Debug, Clone)]
-pub struct Script {
-    code: String,
-    hash: String,
+pub struct Script<'a> {
+    code: &'a str,
+    hash_hex_bytes: [u8; 40],
 }
 
+const HEX_TABLE: [u8; 16] = [
+    '0' as u8, '1' as u8, '2' as u8, '3' as u8, '4' as u8, '5' as u8, '6' as u8, '7' as u8,
+    '8' as u8, '9' as u8, 'a' as u8, 'b' as u8, 'c' as u8, 'd' as u8, 'e' as u8, 'f' as u8
+];
 /// The script object represents a lua script that can be executed on the
 /// redis server.  The object itself takes care of automatic uploading and
 /// execution.  The script object itself can be shared and is immutable.
@@ -27,20 +30,45 @@ pub struct Script {
 /// let result = script.arg(1).arg(2).invoke(&mut con);
 /// assert_eq!(result, Ok(3));
 /// ```
-impl Script {
+impl<'a> Script<'a> {
     /// Creates a new script object.
-    pub fn new(code: &str) -> Script {
-        let mut hash = Sha1::new();
-        hash.update(code.as_bytes());
-        Script {
-            code: code.to_string(),
-            hash: hash.digest().to_string(),
+    pub const fn new(code: &'a str) -> Script<'a> {
+        let b = const_sha1::sha1(
+            &const_sha1::ConstBuffer::from_slice(code.as_bytes())
+        ).bytes();
+
+        let hash_bytes = [
+            HEX_TABLE[((b[0] >> 4) & 0xf) as usize], HEX_TABLE[(b[0] & 0xf) as usize],
+            HEX_TABLE[((b[1] >> 4) & 0xf) as usize], HEX_TABLE[(b[1] & 0xf) as usize],
+            HEX_TABLE[((b[2] >> 4) & 0xf) as usize], HEX_TABLE[(b[2] & 0xf) as usize],
+            HEX_TABLE[((b[3] >> 4) & 0xf) as usize], HEX_TABLE[(b[3] & 0xf) as usize],
+            HEX_TABLE[((b[4] >> 4) & 0xf) as usize], HEX_TABLE[(b[4] & 0xf) as usize],
+            HEX_TABLE[((b[5] >> 4) & 0xf) as usize], HEX_TABLE[(b[5] & 0xf) as usize],
+            HEX_TABLE[((b[6] >> 4) & 0xf) as usize], HEX_TABLE[(b[6] & 0xf) as usize],
+            HEX_TABLE[((b[7] >> 4) & 0xf) as usize], HEX_TABLE[(b[7] & 0xf) as usize],
+            HEX_TABLE[((b[8] >> 4) & 0xf) as usize], HEX_TABLE[(b[8] & 0xf) as usize],
+            HEX_TABLE[((b[9] >> 4) & 0xf) as usize], HEX_TABLE[(b[9] & 0xf) as usize],
+            HEX_TABLE[((b[10] >> 4) & 0xf) as usize], HEX_TABLE[(b[10] & 0xf) as usize],
+            HEX_TABLE[((b[11] >> 4) & 0xf) as usize], HEX_TABLE[(b[11] & 0xf) as usize],
+            HEX_TABLE[((b[12] >> 4) & 0xf) as usize], HEX_TABLE[(b[12] & 0xf) as usize],
+            HEX_TABLE[((b[13] >> 4) & 0xf) as usize], HEX_TABLE[(b[13] & 0xf) as usize],
+            HEX_TABLE[((b[14] >> 4) & 0xf) as usize], HEX_TABLE[(b[14] & 0xf) as usize],
+            HEX_TABLE[((b[15] >> 4) & 0xf) as usize], HEX_TABLE[(b[15] & 0xf) as usize],
+            HEX_TABLE[((b[16] >> 4) & 0xf) as usize], HEX_TABLE[(b[16] & 0xf) as usize],
+            HEX_TABLE[((b[17] >> 4) & 0xf) as usize], HEX_TABLE[(b[17] & 0xf) as usize],
+            HEX_TABLE[((b[18] >> 4) & 0xf) as usize], HEX_TABLE[(b[18] & 0xf) as usize],
+            HEX_TABLE[((b[19] >> 4) & 0xf) as usize], HEX_TABLE[(b[19] & 0xf) as usize],
+        ];
+        Script::<'a> {
+            code,
+            hash_hex_bytes: hash_bytes
         }
     }
 
     /// Returns the script's SHA1 hash in hexadecimal format.
     pub fn get_hash(&self) -> &str {
-        &self.hash
+        // SAFETY: hash_hex_bytes definitely contains 0-9 and a-f only, so it is valid UTF-8 string
+        unsafe { std::str::from_utf8_unchecked(&self.hash_hex_bytes) }
     }
 
     /// Creates a script invocation object with a key filled in.
@@ -89,7 +117,7 @@ impl Script {
 
 /// Represents a prepared script call.
 pub struct ScriptInvocation<'a> {
-    script: &'a Script,
+    script: &'a Script<'a>,
     args: Vec<Vec<u8>>,
     keys: Vec<Vec<u8>>,
 }
@@ -126,7 +154,7 @@ impl<'a> ScriptInvocation<'a> {
     pub fn invoke<T: FromRedisValue>(&self, con: &mut dyn ConnectionLike) -> RedisResult<T> {
         loop {
             match cmd("EVALSHA")
-                .arg(self.script.hash.as_bytes())
+                .arg(self.script.hash_hex_bytes.as_slice())
                 .arg(self.keys.len())
                 .arg(&*self.keys)
                 .arg(&*self.args)
@@ -159,7 +187,7 @@ impl<'a> ScriptInvocation<'a> {
     {
         let mut eval_cmd = cmd("EVALSHA");
         eval_cmd
-            .arg(self.script.hash.as_bytes())
+            .arg(self.script.hash_hex_bytes.as_slice())
             .arg(self.keys.len())
             .arg(&*self.keys)
             .arg(&*self.args);
