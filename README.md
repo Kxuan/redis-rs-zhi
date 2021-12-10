@@ -1,5 +1,12 @@
-# redis-rs
+# redis-rs-zhi
 
+A fork to use redis-rs in my own project.
+
+Changes:
+* const script: define Script in global const variable
+
+
+## redis-rs
 [![Build Status](https://travis-ci.org/mitsuhiko/redis-rs.svg?branch=master)](https://travis-ci.org/mitsuhiko/redis-rs)
 [![crates.io](https://img.shields.io/crates/v/redis.svg)](https://crates.io/crates/redis)
 
